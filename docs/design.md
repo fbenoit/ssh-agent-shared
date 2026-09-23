@@ -16,9 +16,11 @@ Agreed on 2026-09-23 and reviewed before implementation.
   overlay is not synced: a new machine copies it or recreates it from the
   template. The names published before this rule stay in the git history;
   the history is not rewritten.
-- CI rejects private repository names with a regular expression kept in the
-  repository secret `PRIVATE_NAMES_REGEX`, so the check does not publish the
-  names. It prints file names only, never matching lines.
+- CI rejects private repository names and work names with regular
+  expressions kept in the repository secrets `PRIVATE_NAMES_REGEX` and
+  `WORK_NAMES_REGEX`, so the checks do not publish the names. They print file
+  names only, never matching lines. Names published before this rule stay in
+  the git history.
 - Push access uses a deploy key per machine and the `github-ssh-agent-shared`
   host alias, only on machines that edit the repository.
 - The `main` branch requires signed commits. Updates use

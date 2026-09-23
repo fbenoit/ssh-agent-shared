@@ -29,9 +29,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Reject employer and work-script names
+        env:
+          WORK_NAMES_REGEX: ${{ secrets.WORK_NAMES_REGEX }}
         run: |
-          if git grep -n -i -E 'bonduelle|ghe-auth|gtlb|champiland' -- ':!.github/workflows/ci.yml'; then
-            echo "Work names found: keep them out of this public repository."
+          if [ -z "$WORK_NAMES_REGEX" ]; then
+            echo "WORK_NAMES_REGEX is not set: check skipped."
+            exit 0
+          fi
+          # Print file names only: a matching line would publish the name.
+          if git grep -l -i -E -e "$WORK_NAMES_REGEX" > /tmp/matches; then
+            echo "Work names found in:"
+            cat /tmp/matches
             exit 1
           fi
 

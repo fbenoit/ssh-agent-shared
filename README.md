@@ -281,4 +281,6 @@ tests/run.sh
 shellcheck -x bin/_ssh-agent-shared.sh bin/*-auth templates/auth-script.sh install.sh tests/run.sh
 ```
 
-CI runs both on every push, and also rejects employer or work-script names.
+CI runs both on every push. It also rejects employer and work-script names,
+read from the repository secret `WORK_NAMES_REGEX`, and private repository
+names (see [Private repositories](#private-repositories)).
