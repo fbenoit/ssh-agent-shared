@@ -27,6 +27,7 @@ passphrase for each key when prompted. The steps need `git`, `curl` and `jq`.
 1. Trust GitHub's SSH host keys, so the first connection does not ask:
 
    ```
+   mkdir -p ~/.ssh && chmod 700 ~/.ssh
    curl -s https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com " + .' >> ~/.ssh/known_hosts
    ```
 
@@ -89,6 +90,25 @@ passphrase for each key when prompted. The steps need `git`, `curl` and `jq`.
      Include ~/Personal/ssh-agent-shared/ssh_config.d/*.conf
      ```
 
+   - `~/.ssh/config`, so that ssh never offers a deploy key to the wrong
+     repository. Add a `github.com` block, and a `Host *` block as the last
+     block of the file:
+
+     ```
+     Host github.com
+         IdentityFile none
+         IdentitiesOnly yes
+
+     Host *
+         IdentitiesOnly yes
+     ```
+
+     Also remove any global `AddKeysToAgent yes`: keys must enter the agent
+     only through the auth scripts, which load them with a lifetime. With this
+     config, `ssh -T git@github.com` fails with "Permission denied
+     (publickey)", which is expected. Every repository reaches GitHub through
+     its own host alias, or over HTTPS.
+
 7. Load the keys and test the connections: `sas-auth`, `lrn-auth`.
 
 8. Add this machine's signing key to `allowed_signers`, switch the remote to
@@ -100,6 +120,11 @@ passphrase for each key when prompted. The steps need `git`, `curl` and `jq`.
    git commit -am "chore: add <machine> signing key"
    git push
    ```
+
+   On a machine without the `ssh-agent-shared` deploy key, this push is not
+   possible. Copy the line into `allowed_signers` from a machine that can push.
+   Until then, other machines show "No principal matched" for this machine's
+   commits in `git log --show-signature`; GitHub still shows them as Verified.
 
 ## Use
 
@@ -136,11 +161,24 @@ git pull --ff-only --verify-signatures
 
 The `main` branch on GitHub requires signed commits.
 
-## Add an auth script
+## Add a personal repository
 
-1. Copy the template: `cp templates/auth-script.sh bin/<short-name>-auth`.
-2. Replace `__REPO__`, `__SHORT_NAME__`, `__DEPLOY_KEY__` and `__HOST_ALIAS__`.
-3. Add `ssh_config.d/<name>.conf` with the host alias:
+Identity and signing need nothing per repository: any clone under
+`~/Personal/` gets them from `~/.gitconfig-personal`. Only push access is per
+repository.
+
+For a public repository that you only read, clone over HTTPS and stop there.
+Otherwise, give it a deploy key, a host alias and an auth script:
+
+1. Create the deploy key and register it at
+   `https://github.com/fbenoit/<name>/settings/keys`, title `<name>-<machine>`,
+   with **Allow write access**:
+
+   ```
+   ssh-keygen -t ed25519 -C "<name>-<machine>" -f ~/.ssh/<name>_ed25519
+   ```
+
+2. Add `ssh_config.d/<name>.conf` with the host alias:
 
    ```
    Host github-<name>
@@ -150,7 +188,22 @@ The `main` branch on GitHub requires signed commits.
        IdentitiesOnly yes
    ```
 
-4. Run `./install.sh` to link the new script.
+3. Copy the template: `cp templates/auth-script.sh bin/<short-name>-auth`.
+   Replace `__REPO__`, `__SHORT_NAME__`, `__DEPLOY_KEY__` and `__HOST_ALIAS__`.
+4. Run `./install.sh` to link the new script, then run it.
+5. Clone through the alias, under `~/Personal/`:
+
+   ```
+   git clone git@github-<name>:fbenoit/<name>.git ~/Personal/<name>
+   ```
+
+   For an existing clone, switch its remote instead:
+   `git remote set-url origin git@github-<name>:fbenoit/<name>.git`.
+6. Commit and push the new files in this repository.
+
+This repository is public: the alias and the auth script reveal the
+repository name. For a private repository whose name must stay private, keep
+its alias in `~/.ssh/config` and its auth script in `~/.local/bin` instead.
 
 Keep the rules written at the top of the template: a sourced script runs in
 your own shell, so it must never call `exit` on its own, `set -e`, `set -u` or
