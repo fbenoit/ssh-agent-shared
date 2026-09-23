@@ -1,0 +1,19 @@
+# Personal git identity and commit signing, for every repository under
+# ~/Personal/. Installed as ~/.gitconfig-personal and loaded from ~/.gitconfig:
+#
+#   [includeIf "gitdir:~/Personal/"]
+#       path = ~/.gitconfig-personal
+#
+# Signing uses SSH keys, not GPG: the "gpg" in the setting names is historical.
+[user]
+	name = Franck Benoit
+	email = 1279695+fbenoit@users.noreply.github.com
+	signingkey = ~/.ssh/personal_signing_ed25519.pub
+[gpg]
+	format = ssh
+[gpg "ssh"]
+	allowedSignersFile = ~/Personal/ssh-agent-shared/allowed_signers
+[commit]
+	gpgsign = true
+[tag]
+	gpgsign = true

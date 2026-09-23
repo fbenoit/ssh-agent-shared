@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# Auth script for fbenoit/ssh-agent-shared: load the deploy key and the personal signing key
+# into the shared agent, then test the connection.
+#
+# Usage: sas-auth
+#    or: source ~/.local/bin/sas-auth
+
+# shellcheck source=bin/_ssh-agent-shared.sh
+source ~/.local/bin/_ssh-agent-shared.sh || return 1 2>/dev/null || exit 1
+
+ssh_agent_ensure ~/.ssh/ssh_agent_shared_ed25519 || return 1 2>/dev/null || exit 1
+ssh_agent_ensure ~/.ssh/personal_signing_ed25519 || return 1 2>/dev/null || exit 1
+ssh_github_check github-ssh-agent-shared

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# Auth script for the second_brain repository: load the deploy key and the
+# personal signing key
+# into the shared agent, then test the connection.
+#
+# Usage: sb-auth
+#    or: source ~/.local/bin/sb-auth
+
+# shellcheck source=bin/_ssh-agent-shared.sh
+source ~/.local/bin/_ssh-agent-shared.sh || return 1 2>/dev/null || exit 1
+
+ssh_agent_ensure ~/.ssh/second_brain_ed25519 || return 1 2>/dev/null || exit 1
+ssh_agent_ensure ~/.ssh/personal_signing_ed25519 || return 1 2>/dev/null || exit 1
+ssh_github_check github-second-brain
