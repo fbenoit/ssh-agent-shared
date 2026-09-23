@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# Auth script template. Copy it to bin/__SHORT_NAME__-auth, then replace:
-#   __REPO__        the GitHub repository, for example fbenoit/learnings
-#   __SHORT_NAME__  the script name prefix, for example lrn
-#   __DEPLOY_KEY__  the deploy key file name in ~/.ssh, for example learnings_ed25519
-#   __HOST_ALIAS__  the Host alias in ssh_config.d/, for example github-learnings
+# Auth script template. Copy it to bin/__SHORT_NAME__-auth (or to the
+# private overlay for a private repository), then replace:
+#   __REPO__        the GitHub repository, for example fbenoit/example
+#   __SHORT_NAME__  the script name prefix, for example ex
+#   __DEPLOY_KEY__  the deploy key file name in ~/.ssh, for example example_ed25519
+#   __HOST_ALIAS__  the Host alias in ssh_config.d/, for example github-example
 #
 # Auth script for __REPO__: load the deploy key and the personal signing key
 # into the shared agent, then test the connection.

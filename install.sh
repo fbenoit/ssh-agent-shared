@@ -7,18 +7,25 @@
 #
 # Installed links:
 #   ~/.local/bin/<name>     -> <repo>/bin/<name>   (helper and auth scripts)
+#   ~/.local/bin/<name>     -> <overlay>/bin/<name> (private auth scripts)
 #   ~/.gitconfig-personal   -> <repo>/gitconfig-personal
+#
+# The private overlay, ${XDG_CONFIG_HOME:-~/.config}/ssh-agent-shared, holds
+# the auth scripts and host aliases of private repositories, whose names must
+# stay out of this public repository. It is optional and never committed.
 #
 # Rules:
 #   - a symlink that already points to the right file is left alone;
 #   - a regular file or a foreign symlink is renamed <name>.bak.<timestamp>;
 #   - a directory in the way stops the install;
+#   - a dangling link into the repo or the overlay is removed;
 #   - rc files, ~/.gitconfig and ~/.ssh/config are never edited: the script
 #     prints the lines to add by hand.
 set -euo pipefail
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 BIN_DIR="$HOME/.local/bin"
+OVERLAY="${XDG_CONFIG_HOME:-$HOME/.config}/ssh-agent-shared"
 HELPER=_ssh-agent-shared.sh
 NOREPLY_EMAIL=1279695+fbenoit@users.noreply.github.com
 STAMP=$(date +%Y%m%d-%H%M%S)
@@ -29,17 +36,33 @@ links() {
   for src in "$REPO"/bin/*; do
     printf '%s|%s\n' "$src" "$BIN_DIR/$(basename "$src")"
   done
+  for src in "$OVERLAY"/bin/*; do
+    [ -f "$src" ] || continue
+    if [ -e "$REPO/bin/$(basename "$src")" ]; then
+      echo "warning: $src has the name of a script in $REPO/bin; skipped" >&2
+      continue
+    fi
+    printf '%s|%s\n' "$src" "$BIN_DIR/$(basename "$src")"
+  done
   printf '%s|%s\n' "$REPO/gitconfig-personal" "$HOME/.gitconfig-personal"
 }
 
-# owned <dest>: success when <dest> is a symlink created by this repo, or a
-# dangling symlink left by a clone that has since moved.
+# tilde <path>: print <path> with $HOME written as ~.
+tilde() {
+  case "$1" in
+    "$HOME"/*) printf '~%s' "${1#"$HOME"}" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+# owned <dest>: success when <dest> is a symlink created by this repo or the
+# overlay, or a dangling symlink left by a clone that has since moved.
 owned() {
   local dest="$1" target
   [ -L "$dest" ] || return 1
   target=$(readlink "$dest")
   case "$target" in
-    "$REPO"/*) return 0 ;;
+    "$REPO"/* | "$OVERLAY"/*) return 0 ;;
   esac
   [ ! -e "$dest" ] && case "$target" in */ssh-agent-shared/*) return 0 ;; esac
   return 1
@@ -102,7 +125,20 @@ uninstall_one() {
   fi
 }
 
-# hint <file> <pattern> <line>: print <line> unless <file> already matches.
+# prune: remove dangling links owned by this install, left by scripts that
+# were deleted or moved to the overlay.
+prune() {
+  local dest
+  for dest in "$BIN_DIR"/*; do
+    if [ -L "$dest" ] && [ ! -e "$dest" ] && owned "$dest"; then
+      rm "$dest"
+      echo "prune    $dest"
+    fi
+  done
+}
+
+# hint <file> <patterns> <line>: print <line> unless <file> already matches
+# one of the newline-separated <patterns>.
 hint() {
   local file="$1" pattern="$2" line="$3"
   if [ -f "$file" ] && grep -qF -- "$pattern" "$file"; then
@@ -117,12 +153,22 @@ do_install() {
   while IFS= read -r pair; do
     install_one "${pair%%|*}" "${pair#*|}"
   done < <(links)
+  prune
+
+  local repo_conf overlay_conf
+  repo_conf="$(tilde "$REPO")/ssh_config.d"
+  overlay_conf="$(tilde "$OVERLAY")/ssh_config.d"
 
   # shellcheck disable=SC2016 # the line is printed, not expanded
   hint "$HOME/.$(basename "${SHELL:-bash}")rc" 'agent.sock' 'export SSH_AUTH_SOCK="$HOME/.ssh/agent.sock"'
   hint "$HOME/.gitconfig" 'gitconfig-personal' '[includeIf "gitdir:~/Personal/"]
 	path = ~/.gitconfig-personal'
-  hint "$HOME/.ssh/config" 'ssh-agent-shared/ssh_config.d' "Include $REPO/ssh_config.d/*.conf   (at the top of the file)"
+  hint "$HOME/.ssh/config" "$REPO/ssh_config.d/
+$repo_conf/" "Include $repo_conf/*.conf   (at the top of the file)"
+  if [ -d "$OVERLAY/ssh_config.d" ]; then
+    hint "$HOME/.ssh/config" "$OVERLAY/ssh_config.d/
+$overlay_conf/" "Include $overlay_conf/*.conf   (at the top of the file)"
+  fi
 
   local email
   email=$(git -C "$REPO" config user.email || true)
@@ -137,6 +183,7 @@ do_uninstall() {
   while IFS= read -r pair; do
     uninstall_one "${pair%%|*}" "${pair#*|}"
   done < <(links)
+  prune
   echo
   echo "Remove the lines you added by hand to ~/.zshrc, ~/.gitconfig and ~/.ssh/config."
 }

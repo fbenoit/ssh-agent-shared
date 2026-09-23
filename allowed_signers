@@ -1,4 +1,4 @@
 # Personal SSH signing keys, one line per machine, used to verify commits.
 # Format: <principal> namespaces="git" <public key>
-1279695+fbenoit@users.noreply.github.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPh55qOBF414svKs8u6Zf6Oy6/Y++iL+z63GeZmcZF0n learnings-signing-company-wsl
+1279695+fbenoit@users.noreply.github.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPh55qOBF414svKs8u6Zf6Oy6/Y++iL+z63GeZmcZF0n retired-signing-company-wsl
 1279695+fbenoit@users.noreply.github.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAININ7cijdzqIBKrljusBOHa/Y5CDzmLi2V/fN+Ivq1Up personal-signing-company-wsl

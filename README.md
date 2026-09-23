@@ -11,12 +11,12 @@ in [docs/design.md](docs/design.md).
 | Path | Role |
 | --- | --- |
 | `bin/_ssh-agent-shared.sh` | Helper sourced by every auth script: starts or reuses the shared agent on `~/.ssh/agent.sock` and defines `ssh_agent_ensure` and `ssh_github_check`. |
-| `bin/lrn-auth`, `bin/sb-auth`, `bin/sas-auth` | Auth scripts for `learnings`, `second_brain` and this repository. |
+| `bin/sas-auth` | Auth script for this repository. |
 | `templates/auth-script.sh` | Template for a new auth script. |
 | `ssh_config.d/*.conf` | Host aliases, one per repository. |
 | `gitconfig-personal` | Personal git identity and SSH commit signing for every repository under `~/Personal/`. |
 | `allowed_signers` | Public signing keys of every machine, used to verify commits. |
-| `install.sh` | Creates or removes the symlinks. |
+| `install.sh` | Creates or removes the symlinks, also for the private overlay. |
 | `tests/run.sh` | Integration tests in bash and zsh, in a throwaway `HOME`. |
 
 ## Set up a new machine
@@ -53,9 +53,13 @@ passphrase for each key when prompted. The steps need `git`, `curl` and `jq`.
 
    ```
    ssh-keygen -t ed25519 -C "personal-signing-<machine>" -f ~/.ssh/personal_signing_ed25519
-   ssh-keygen -t ed25519 -C "learnings-<machine>" -f ~/.ssh/learnings_ed25519
+   ssh-keygen -t ed25519 -C "<repo>-<machine>" -f ~/.ssh/<repo>_ed25519
    ssh-keygen -t ed25519 -C "ssh-agent-shared-<machine>" -f ~/.ssh/ssh_agent_shared_ed25519
    ```
+
+   For private repositories, also create the
+   [private overlay](#private-repositories) now: `install.sh` links its
+   scripts in the next step.
 
 5. Register the keys on github.com:
    - Personal signing key: `https://github.com/settings/ssh/new`, key type
@@ -88,7 +92,11 @@ passphrase for each key when prompted. The steps need `git`, `curl` and `jq`.
 
      ```
      Include ~/Personal/ssh-agent-shared/ssh_config.d/*.conf
+     Include ~/.config/ssh-agent-shared/ssh_config.d/*.conf
      ```
+
+     The second line is for the private overlay. It does nothing while the
+     overlay does not exist.
 
    - `~/.ssh/config`, so that ssh never offers a deploy key to the wrong
      repository. Add a `github.com` block, and a `Host *` block as the last
@@ -109,7 +117,8 @@ passphrase for each key when prompted. The steps need `git`, `curl` and `jq`.
      (publickey)", which is expected. Every repository reaches GitHub through
      its own host alias, or over HTTPS.
 
-7. Load the keys and test the connections: `sas-auth`, `lrn-auth`.
+7. Load the keys and test the connections: `sas-auth`, then the auth script
+   of each other repository.
 
 8. Add this machine's signing key to `allowed_signers`, switch the remote to
    the host alias, and push:
@@ -132,7 +141,7 @@ Run the auth script of a repository before you work in it, and again after a
 reboot or when the keys expire:
 
 ```
-lrn-auth
+sas-auth
 ```
 
 Auth scripts can be executed or sourced. Executing is enough when your shell
@@ -161,6 +170,11 @@ git pull --ff-only --verify-signatures
 
 The `main` branch on GitHub requires signed commits.
 
+After a pull, run `./install.sh` again: it links new scripts and removes links
+to deleted ones. Before pulling the commit that moved the private repository
+files out of this repository, copy them into the private overlay (see below),
+or the pull deletes them from this machine too.
+
 ## Add a personal repository
 
 Identity and signing need nothing per repository: any clone under
@@ -178,7 +192,8 @@ Otherwise, give it a deploy key, a host alias and an auth script:
    ssh-keygen -t ed25519 -C "<name>-<machine>" -f ~/.ssh/<name>_ed25519
    ```
 
-2. Add `ssh_config.d/<name>.conf` with the host alias:
+2. Add `ssh_config.d/<name>.conf` with the host alias (for a private
+   repository, see [Private repositories](#private-repositories)):
 
    ```
    Host github-<name>
@@ -202,12 +217,46 @@ Otherwise, give it a deploy key, a host alias and an auth script:
 6. Commit and push the new files in this repository.
 
 This repository is public: the alias and the auth script reveal the
-repository name. For a private repository whose name must stay private, keep
-its alias in `~/.ssh/config` and its auth script in `~/.local/bin` instead.
+repository name. Keep the files of private repositories in the private
+overlay instead.
 
 Keep the rules written at the top of the template: a sourced script runs in
 your own shell, so it must never call `exit` on its own, `set -e`, `set -u` or
 `trap`, and must not set top-level variables.
+
+## Private repositories
+
+The names of private repositories stay out of this public repository. Their
+host aliases and auth scripts live in the private overlay, a local directory
+that is never committed:
+
+```
+~/.config/ssh-agent-shared/          ($XDG_CONFIG_HOME/ssh-agent-shared if set)
+    bin/<short-name>-auth
+    ssh_config.d/<name>.conf
+```
+
+`install.sh` links `bin/*` from the overlay into `~/.local/bin`, like the
+scripts of this repository, and prints the `Include` line for its
+`ssh_config.d` when it is missing from `~/.ssh/config`. An overlay script with
+the name of a script in this repository is skipped with a warning.
+
+To add a private repository, follow [Add a personal
+repository](#add-a-personal-repository), but write the alias to
+`~/.config/ssh-agent-shared/ssh_config.d/<name>.conf` and copy the template to
+`~/.config/ssh-agent-shared/bin/<short-name>-auth`. Skip the commit step.
+
+On a new machine, copy the overlay from a machine that has it, or recreate
+each file from the template. The private repository itself can document its
+alias and auth script, for example in its setup notes.
+
+CI rejects the names of private repositories with the `no-private-names`
+job. It reads an extended regular expression from the repository secret
+`PRIVATE_NAMES_REGEX`, prints only the names of matching files, and does
+nothing when the secret is not set. Add each new private repository name to
+the secret.
+
+## Work accounts
 
 Scripts for work accounts do not belong in this public repository. Keep them
 in `~/.local/bin` only; they can source `~/.local/bin/_ssh-agent-shared.sh`
@@ -219,11 +268,11 @@ like the scripts here.
 ./install.sh --uninstall
 ```
 
-It removes only the symlinks that point into this repository and restores the
-latest `.bak.<timestamp>` backup of each file. Restored files are the versions
-from before the install and may use old key names. The helper is replaced by a
-copy rather than removed, because local scripts may still source it. Remove
-the lines you added by hand in step 6.
+It removes only the symlinks that point into this repository or the private
+overlay, and restores the latest `.bak.<timestamp>` backup of each file.
+Restored files are the versions from before the install and may use old key
+names. The helper is replaced by a copy rather than removed, because local
+scripts may still source it. Remove the lines you added by hand in step 6.
 
 ## Development
 

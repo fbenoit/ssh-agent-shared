@@ -29,3 +29,9 @@ _Avoid_: GPG key, commit key, per-repo signing key
 A `Host github-<name>` entry in the SSH config that makes ssh use one deploy
 key for one repository.
 _Avoid_: remote name, SSH profile
+
+**Private overlay**:
+The local directory `~/.config/ssh-agent-shared` that holds the host aliases
+and auth scripts of private repositories, so their names never enter this
+public repository. It is never committed.
+_Avoid_: private repo, local config, overlay repo
