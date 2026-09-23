@@ -117,8 +117,8 @@ passphrase for each key when prompted. The steps need `git`, `curl` and `jq`.
      (publickey)", which is expected. Every repository reaches GitHub through
      its own host alias, or over HTTPS.
 
-7. Load the keys and test the connections: `sas-auth`, then the auth script
-   of each other repository.
+7. Load the keys and test the connections: run the auth script of each
+   repository you created a deploy key for, for example `sas-auth`.
 
 8. Add this machine's signing key to `allowed_signers`, switch the remote to
    the host alias, and push:
